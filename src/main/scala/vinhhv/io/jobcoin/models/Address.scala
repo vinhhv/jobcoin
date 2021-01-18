@@ -11,7 +11,7 @@ object Address {
   final case class DepositAddress private (name: String) extends Address
   final case class HouseAddress private (name: String) extends Address
 
-  private val ValidAddressRegex = raw"^([a-zA-Z0-9]+)$$".r
+  private val ValidAddressRegex = raw"^([a-zA-Z0-9-_]+)$$".r
   def verifyAddressName(name: String): IO[String] =
     name match {
       case ValidAddressRegex(validName: String) => IO.pure(validName)

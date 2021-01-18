@@ -23,4 +23,13 @@ package object jobcoin {
       s"Invalid address name provided, must be an alphanumeric, non-empty string. " +
         s"Input provided: $name"
   }
+
+  // Mixer Errors
+  final case class DepositAddressAlreadyInUseException(name: String) extends Exception {
+    val message = s"Deposit address $name is already in use"
+  }
+
+  final case class HouseAddressAlreadyInUseException(name: String) extends Exception {
+    val message = s"House address $name is already in use"
+  }
 }

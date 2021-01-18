@@ -10,8 +10,10 @@ import io.finch._
 import io.finch.catsEffect._
 import io.finch.circe._
 import vinhhv.io.jobcoin.errorhandling.EncodingImplicits._
-import vinhhv.io.jobcoin.repository.JobCoinAPI
-import vinhhv.io.jobcoin.service.TransferService
+import vinhhv.io.jobcoin.repository.{JobCoinAPI, MixerRepositoryInMemory}
+import vinhhv.io.jobcoin.requests.CreateMixerRequest
+import vinhhv.io.jobcoin.requests.CreateMixerRequest._
+import vinhhv.io.jobcoin.service.{MixerService, TransferService}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -22,10 +24,14 @@ object Main extends App {
   implicit val timer: Timer[IO] = IO.timer(ec)
 
   final case class BalanceResponse(balance: String)
+  final case class DepositAddressResponse(depositAddress: String)
   final case class SendCoinsRequest(toAddress: String, fromAddress: String, amount: Double)
 
   val jobCoinAPI = new JobCoinAPI()
   val transferService = new TransferService(jobCoinAPI)
+
+  val mixerRepo = new MixerRepositoryInMemory()
+  val mixerService = new MixerService(mixerRepo)
 
   def healthcheck: Endpoint[IO, String] = get(pathEmpty) {
     Ok("OK")
@@ -55,7 +61,21 @@ object Main extends App {
         transferService
           .sendCoins(request.fromAddress, request.toAddress, request.amount)
           .map(_ => Ok())
-          .unsafeRunSync()
+          .unsafeRunSync
+      }
+    } handle {
+      // TODO: This always returns server error no matter what, not sure why. Needs to be fixed
+      case e: JobCoinInputException => BadRequest(e)
+      case e: Exception => InternalServerError(e)
+    }
+
+  def createMixer: Endpoint[IO, DepositAddressResponse] =
+    post("createMixer" :: jsonBody[CreateMixerRequest]) { request: CreateMixerRequest =>
+      FuturePool.unboundedPool {
+        mixerService
+          .createMixerAddresses(request.addresses)
+          .map(depositAddress => Ok(DepositAddressResponse(depositAddress.name)))
+          .unsafeRunSync
       }
     } handle {
       // TODO: This always returns server error no matter what, not sure why. Needs to be fixed
@@ -65,7 +85,7 @@ object Main extends App {
 
   def service: Service[Request, Response] = Bootstrap
     .serve[Text.Plain](healthcheck)
-    .serve[Application.Json](getAddressBalance :+: sendCoins)
+    .serve[Application.Json](getAddressBalance :+: sendCoins :+: createMixer)
     .toService
 
 //  def printRepeatedly: IO[Unit] = IO.delay(println("hello!")) *> IO.sleep(1 second) *> IO.suspend(printRepeatedly)
