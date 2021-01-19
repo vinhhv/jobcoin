@@ -3,9 +3,7 @@ package service
 
 import java.util.UUID
 
-import cats.Parallel
-import cats.effect.IO
-import cats.effect.IO._
+import cats.effect.{ContextShift, IO}
 import cats.instances.list._
 import cats.syntax.apply._
 import cats.syntax.parallel._
@@ -29,7 +27,7 @@ final class MixerService(repo: MixerRepository, transferService: TransferService
   def generateRandomAddress: String = UUID.randomUUID().toString
 
   // Main function to mix and distribute Jobcoins in existing Housing Accounts.
-  def distributeJobcoin(implicit p: Parallel[IO]): IO[Unit] = {
+  def distributeJobcoin(implicit cs: ContextShift[IO]): IO[Unit] = {
     for {
       distributionAddresses <- repo.getDistributionAddresses
       addressBalances <- MixerService.getAllAddressBalancesPar(distributionAddresses, transferService)
@@ -53,7 +51,7 @@ object MixerService {
   def getAllAddressBalancesPar(
       addresses: List[DistributionAddresses],
       transferService: TransferService
-  )(implicit p: Parallel[IO]): IO[List[MixerAddressInfo]] =
+  )(implicit cs: ContextShift[IO]): IO[List[MixerAddressInfo]] =
     addresses
       .map {
         distributionAddress =>
@@ -80,7 +78,7 @@ object MixerService {
   def sendDistributions(
       distributions: List[MixerAddressDistribution],
       transferService: TransferService
-  )(implicit p: Parallel[IO]): IO[List[Unit]] =
+  )(implicit cs: ContextShift[IO]): IO[List[Unit]] =
     distributions
       .flatMap { distribution =>
         distribution.distributions.map {

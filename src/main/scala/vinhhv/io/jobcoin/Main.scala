@@ -88,6 +88,11 @@ object Main extends App {
       IO.sleep(20 seconds) *>
       IO.suspend(transferDepositsScheduler)
 
+  def distributeHousesScheduler: IO[Unit] =
+    IO.suspend(mixerService.distributeJobcoin) *>
+      IO.sleep(10 seconds) *>
+      IO.suspend(transferDepositsScheduler)
+
   val app = for {
     _ <- transferDepositsScheduler.start
     _ <- IO(Await.ready(Http.server.serve(":8081", service)))
