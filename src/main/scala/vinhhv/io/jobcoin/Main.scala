@@ -95,6 +95,7 @@ object Main extends App {
 
   val app = for {
     _ <- transferDepositsScheduler.start
+    _ <- distributeHousesScheduler.start
     _ <- IO(Await.ready(Http.server.serve(":8081", service)))
   } yield ()
   app.unsafeRunSync()
