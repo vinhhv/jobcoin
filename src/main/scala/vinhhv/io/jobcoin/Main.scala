@@ -91,7 +91,7 @@ object Main extends App {
   def distributeHousesScheduler: IO[Unit] =
     IO.suspend(mixerService.distributeJobcoin) *>
       IO.sleep(10 seconds) *>
-      IO.suspend(transferDepositsScheduler)
+      IO.suspend(distributeHousesScheduler)
 
   val app = for {
     _ <- transferDepositsScheduler.start
