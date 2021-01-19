@@ -3,8 +3,8 @@ package repository
 
 import java.util.concurrent.ConcurrentHashMap
 
-import cats.Apply.ops._
 import cats.effect.IO
+import cats.syntax.apply._
 import vinhhv.io.jobcoin.models.Address
 import vinhhv.io.jobcoin.models.Address.{DepositAddress, HouseAddress, StandardAddress}
 
@@ -20,14 +20,24 @@ final class MixerRepositoryInMemory extends MixerRepository {
       houseAddress: Address.HouseAddress,
       sinkAddresses: List[Address.StandardAddress]
   ): IO[Unit] = {
-    (depositToHousingMap.contains(depositAddress), housingToStandardMap.contains(houseAddress)) match {
-      case (true, _) => IO.raiseError(DepositAddressAlreadyInUseException(depositAddress.name))
-      case (_, true) => IO.raiseError(HouseAddressAlreadyInUseException(houseAddress.name))
-      case (false, false) =>
-        IO(depositToHousingMap.put(depositAddress, houseAddress)) *>
-        IO(housingToStandardMap.put(houseAddress, sinkAddresses.toSet)) *>
-        IO(println(depositToHousingMap)) *> IO(println(housingToStandardMap))
-    }
+    for {
+      _ <- IO(println(s"Creating mixer pipeline for ${depositAddress.name} -> ${houseAddress.name} -> $sinkAddresses"))
+      containsDepositAddress <- IO(depositToHousingMap.contains(depositAddress))
+      containsHouseAddress <- IO(housingToStandardMap.contains(houseAddress))
+      _ <- (containsDepositAddress, containsHouseAddress) match {
+        case (true, _) => IO.raiseError(DepositAddressAlreadyInUseException(depositAddress.name))
+        case (_, true) => IO.raiseError(HouseAddressAlreadyInUseException(houseAddress.name))
+        case (false, false) =>
+          IO(depositToHousingMap.put(depositAddress, houseAddress)) *>
+            IO(housingToStandardMap.put(houseAddress, sinkAddresses.toSet)) *>
+            IO(println(depositToHousingMap)) *> IO(println(housingToStandardMap))
+      }
+    } yield ()
   }
 
+  def isDepositAddress(name: String): IO[Boolean] =
+    for {
+      depositAddress <- Address.createDeposit(name)
+      isDepositAddress <- IO(depositToHousingMap.containsKey(depositAddress))
+    } yield isDepositAddress
 }

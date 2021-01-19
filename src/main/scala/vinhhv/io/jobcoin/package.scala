@@ -32,4 +32,7 @@ package object jobcoin {
   final case class HouseAddressAlreadyInUseException(name: String) extends Exception {
     val message = s"House address $name is already in use"
   }
+
+  // Generic
+  final case class JobCoinServerError(message: String) extends Exception
 }
