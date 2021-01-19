@@ -37,10 +37,12 @@ final class MixerRepositoryInMemory extends MixerRepository {
     } yield ()
   }
 
-  def getDistributionAddresses: IO[List[DistributionAddresses]] =
+  def getDistributionAddresses: IO[List[DistributionAddresses]] = {
+    IO(println("Getting Distribution Addresses")) *>
     IO(housingToSinkMap.asScala.toList.map {
       case (houseAddress, sinkAddresses) => DistributionAddresses(houseAddress, sinkAddresses.toList)
     })
+  }
 
   def isDepositAddress(name: String): IO[Boolean] =
     for {

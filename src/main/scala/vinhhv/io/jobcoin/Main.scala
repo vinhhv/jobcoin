@@ -94,9 +94,13 @@ object Main extends App {
       IO.suspend(distributeHousesScheduler)
 
   val app = for {
-    _ <- transferDepositsScheduler.start
-    _ <- distributeHousesScheduler.start
-    _ <- IO(Await.ready(Http.server.serve(":8081", service)))
-  } yield ()
+    fiber1 <- transferDepositsScheduler.start
+    fiber2 <- distributeHousesScheduler.start
+    result <-
+      IO(Await.ready(Http.server.serve(":8081", service)))
+        .handleErrorWith { error =>
+          fiber1.cancel *> fiber2.cancel *> IO.raiseError(error)
+        }
+  } yield result
   app.unsafeRunSync()
 }

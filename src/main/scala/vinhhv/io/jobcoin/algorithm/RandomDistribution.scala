@@ -30,7 +30,7 @@ object RandomDistribution {
       .sorted
       .sliding(2, 1)
       .map { pairs =>
-        (BigDecimal(pairs(1) - pairs.head) / BigDecimal(math.pow(10, 8))).toDouble
+        (BigDecimal(pairs(1) - pairs.head) / BigDecimal(math.pow(10, PRECISION))).toDouble
       }
       .toList
   }
