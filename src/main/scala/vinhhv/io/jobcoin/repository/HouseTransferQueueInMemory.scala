@@ -11,7 +11,7 @@ final class HouseTransferQueueInMemory extends HouseTransferQueue {
   private val queue = new ConcurrentLinkedQueue[DepositLog]()
 
   def get: IO[Option[DepositLog]] = queue.poll() match {
-    case d @ DepositLog(_, _) => IO(println("Retrieved $d from queue")) *> IO.pure(Some(d))
+    case d @ DepositLog(_, _) => IO(println(s"Retrieved $d from queue")) *> IO.pure(Some(d))
     case _ => IO(println("Empty queue!")) *> IO.pure(None)
   }
 

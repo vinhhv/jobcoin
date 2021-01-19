@@ -28,7 +28,7 @@ object Main extends App {
 
   val transferService = new TransferService(jobCoinAPI, mixerRepo, houseTransferQueue)
   val mixerService = new MixerService(mixerRepo)
-  val houseTransferService = new HouseTransferService(mixerRepo, houseTransferQueue)
+  val houseTransferService = new HouseTransferService(transferService, mixerRepo, houseTransferQueue)
 
   def healthcheck: Endpoint[IO, String] = get(pathEmpty) {
     Ok("OK")

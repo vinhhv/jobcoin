@@ -14,4 +14,6 @@ trait MixerRepository {
     sinkAddresses: List[StandardAddress]): IO[Unit]
 
   def isDepositAddress(name: String): IO[Boolean]
+
+  def getHouseAddress(depositAddress: DepositAddress): IO[HouseAddress]
 }

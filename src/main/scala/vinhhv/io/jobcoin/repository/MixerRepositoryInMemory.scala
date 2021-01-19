@@ -12,8 +12,8 @@ import vinhhv.io.jobcoin.models.Address.{DepositAddress, HouseAddress, StandardA
 // and sink addresses using two concurrent hash maps. They will NOT
 // outlive the life of the server.
 final class MixerRepositoryInMemory extends MixerRepository {
-  val depositToHousingMap = new ConcurrentHashMap[DepositAddress, HouseAddress]()
-  val housingToStandardMap = new ConcurrentHashMap[HouseAddress, Set[StandardAddress]]()
+  private val depositToHousingMap = new ConcurrentHashMap[DepositAddress, HouseAddress]()
+  private val housingToStandardMap = new ConcurrentHashMap[HouseAddress, Set[StandardAddress]]()
 
   def createMixerPipeline(
       depositAddress: Address.DepositAddress,
@@ -40,4 +40,13 @@ final class MixerRepositoryInMemory extends MixerRepository {
       depositAddress <- Address.createDeposit(name)
       isDepositAddress <- IO(depositToHousingMap.containsKey(depositAddress))
     } yield isDepositAddress
+
+  def getHouseAddress(depositAddress: DepositAddress): IO[HouseAddress] =
+    for {
+      houseAddress <-
+        if (depositToHousingMap.containsKey(depositAddress))
+          IO(depositToHousingMap.get(depositAddress))
+        else
+          IO.raiseError(JobCoinServerError(s"Deposit address ${depositAddress.name} has no housing address"))
+    } yield houseAddress
 }
