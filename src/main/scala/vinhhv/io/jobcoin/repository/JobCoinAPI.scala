@@ -2,17 +2,14 @@ package vinhhv.io.jobcoin
 package repository
 
 import cats.effect.IO
-import com.typesafe.config.ConfigFactory
 import io.circe.Json
 import io.circe.parser.parse
 import sttp.client3._
+import vinhhv.io.jobcoin.Settings.{ADDRESSES_URL, TRANSACTIONS_URL}
 import vinhhv.io.jobcoin.models.{Address, Funds}
 
 final class JobCoinAPI extends CoinRepository {
   val backend = HttpURLConnectionBackend()
-  val config = ConfigFactory.load().getConfig("jobcoin")
-  val ADDRESSES_URL = config.getString("apiAddressesUrl")
-  val TRANSACTIONS_URL = config.getString("apiTransactionsUrl")
 
   def sendCoins(fromAddress: Address, toAddress: Address, deposit: Funds.Deposit): IO[Unit] = {
     val uri = uri"${TRANSACTIONS_URL}"
