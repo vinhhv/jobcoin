@@ -24,6 +24,10 @@ package object jobcoin {
         s"Input provided: $name"
   }
 
+  final case class EmptyAddressException() extends JobCoinInputException {
+    val message = s"At least one address must be provided to create mixer pipeline."
+  }
+
   // Mixer Errors
   final case class DepositAddressAlreadyInUseException(name: String) extends Exception {
     val message = s"Deposit address $name is already in use"

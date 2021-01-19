@@ -5,15 +5,17 @@ import java.util.concurrent.ConcurrentHashMap
 
 import cats.effect.IO
 import cats.syntax.apply._
-import vinhhv.io.jobcoin.models.Address
+import vinhhv.io.jobcoin.models.{Address, DistributionAddresses}
 import vinhhv.io.jobcoin.models.Address.{DepositAddress, HouseAddress, StandardAddress}
+
+import scala.collection.JavaConverters._
 
 // For the purpose of simplicity, we will link our deposit, housing
 // and sink addresses using two concurrent hash maps. They will NOT
 // outlive the life of the server.
 final class MixerRepositoryInMemory extends MixerRepository {
   private val depositToHousingMap = new ConcurrentHashMap[DepositAddress, HouseAddress]()
-  private val housingToStandardMap = new ConcurrentHashMap[HouseAddress, Set[StandardAddress]]()
+  private val housingToSinkMap = new ConcurrentHashMap[HouseAddress, Set[StandardAddress]]()
 
   def createMixerPipeline(
       depositAddress: Address.DepositAddress,
@@ -23,17 +25,22 @@ final class MixerRepositoryInMemory extends MixerRepository {
     for {
       _ <- IO(println(s"Creating mixer pipeline for ${depositAddress.name} -> ${houseAddress.name} -> $sinkAddresses"))
       containsDepositAddress <- IO(depositToHousingMap.contains(depositAddress))
-      containsHouseAddress <- IO(housingToStandardMap.contains(houseAddress))
+      containsHouseAddress <- IO(housingToSinkMap.contains(houseAddress))
       _ <- (containsDepositAddress, containsHouseAddress) match {
         case (true, _) => IO.raiseError(DepositAddressAlreadyInUseException(depositAddress.name))
         case (_, true) => IO.raiseError(HouseAddressAlreadyInUseException(houseAddress.name))
         case (false, false) =>
           IO(depositToHousingMap.put(depositAddress, houseAddress)) *>
-            IO(housingToStandardMap.put(houseAddress, sinkAddresses.toSet)) *>
-            IO(println(depositToHousingMap)) *> IO(println(housingToStandardMap))
+            IO(housingToSinkMap.put(houseAddress, sinkAddresses.toSet)) *>
+            IO(println(depositToHousingMap)) *> IO(println(housingToSinkMap))
       }
     } yield ()
   }
+
+  def getDistributionAddresses: IO[List[DistributionAddresses]] =
+    IO(housingToSinkMap.asScala.toList.map {
+      case (houseAddress, sinkAddresses) => DistributionAddresses(houseAddress, sinkAddresses.toList)
+    })
 
   def isDepositAddress(name: String): IO[Boolean] =
     for {

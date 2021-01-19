@@ -2,6 +2,7 @@ package vinhhv.io.jobcoin.repository
 
 import cats.effect.IO
 import vinhhv.io.jobcoin.models.Address.{DepositAddress, HouseAddress, StandardAddress}
+import vinhhv.io.jobcoin.models.DistributionAddresses
 
 trait MixerRepository {
   // Links the following addresses via some persistence strategy.
@@ -12,6 +13,9 @@ trait MixerRepository {
     depositAddress: DepositAddress,
     houseAddress: HouseAddress,
     sinkAddresses: List[StandardAddress]): IO[Unit]
+
+  // Retrieves the housing address and sink addresses to run the mixer distribution.
+  def getDistributionAddresses: IO[List[DistributionAddresses]]
 
   def isDepositAddress(name: String): IO[Boolean]
 
