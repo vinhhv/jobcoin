@@ -1,11 +1,10 @@
 package vinhhv.io.jobcoin
 
 import cats.Parallel
-import cats.effect.{IO, Timer}
+import cats.effect.{ExitCode, IO, IOApp, Timer}
 import cats.syntax.apply._
-import com.twitter.finagle.{Http, Service}
+import com.twitter.finagle.{Http, ListeningServer, Service}
 import com.twitter.finagle.http.{Request, Response}
-import com.twitter.util.Await
 import io.circe.generic.auto._
 import io.finch._
 import io.finch.catsEffect._
@@ -18,10 +17,9 @@ import vinhhv.io.jobcoin.service.{HouseTransferService, MixerService, TransferSe
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-object Main extends App {
+object Main extends IOApp {
   implicit val ec = ExecutionContext.global
   implicit val ctx = IO.contextShift(ec)
-  implicit val timer: Timer[IO] = IO.timer(ec)
 
   val jobCoinAPI = new JobCoinAPI()
   val mixerRepo = new MixerRepositoryInMemory()
@@ -86,15 +84,17 @@ object Main extends App {
       IO.sleep(10 seconds) *>
       IO.suspend(distributeHousesScheduler)
 
-  val serve = IO(Http.server.serve(":8081", service))
-  val app = for {
-    _ <-
-      Parallel
-        .parMap3(
-          transferDepositsScheduler,
-          distributeHousesScheduler,
-          serve
-        )((_, _, _) => ())
-  } yield ()
-  app.unsafeRunSync()
+  override def run(args: List[String]): IO[ExitCode] = {
+    val serve: IO[ListeningServer] = IO(Http.server.serve(":8081", service))
+    val app = for {
+      exit <-
+        Parallel
+          .parMap3(
+            transferDepositsScheduler,
+            distributeHousesScheduler,
+            serve
+          )((_, _, _) => ExitCode.Success)
+    } yield exit
+    app
+  }
 }
