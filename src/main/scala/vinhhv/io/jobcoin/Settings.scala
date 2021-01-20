@@ -8,4 +8,6 @@ object Settings {
   val TRANSACTIONS_URL = config.getString("apiTransactionsUrl")
 
   val PRECISION = config.getInt("precision")
+  val DEPOSIT_SERVICE_SCHEDULE = config.getInt("schedule_for_deposit_service")
+  val MIXER_SERVICE_SCHEDULE = config.getInt("schedule_for_mixer_service")
 }

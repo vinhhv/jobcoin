@@ -8,17 +8,13 @@ import sttp.client3._
 import vinhhv.io.jobcoin.Settings.{ADDRESSES_URL, TRANSACTIONS_URL}
 import vinhhv.io.jobcoin.models.{Address, FundType, Funds}
 
-final class JobCoinAPI extends CoinRepository {
-  // Use cats effect backend
-  val backend = HttpURLConnectionBackend()
-
+final class JobCoinAPI(backend: SttpBackend[IO, Any]) extends CoinRepository {
   def sendCoins(fromAddress: Address[_], toAddress: Address[_], deposit: Funds[FundType.Deposit]): IO[Unit] = {
     val uri = uri"${TRANSACTIONS_URL}"
     val request = basicRequest
       .post(uri)
       .body(Map("fromAddress" -> fromAddress.name, "toAddress" -> toAddress.name, "amount" -> deposit.amount.toString))
-    val responseIO = IO(request.send(backend))
-    responseIO.flatMap { response =>
+    request.send(backend).flatMap { response =>
       response.isSuccess match {
         case false => IO.raiseError(InsufficientFundsException(fromAddress.name))
         case true => IO.unit
@@ -29,8 +25,7 @@ final class JobCoinAPI extends CoinRepository {
   def getAddressInfo(address: Address[_]): IO[Json] = {
     val uri = uri"${ADDRESSES_URL}/${address.name}"
     val request = basicRequest.get(uri)
-    val responseIO = IO(request.send(backend))
-    responseIO.flatMap { response =>
+    request.send(backend).flatMap { response =>
       response.body match {
         case Left(errorMessage: String) => IO.raiseError(JobCoinAPIException(response.code.code, errorMessage))
         case Right(jsonBody: String) => parse(jsonBody) match {

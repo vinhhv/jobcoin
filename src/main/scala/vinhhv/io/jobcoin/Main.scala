@@ -9,6 +9,7 @@ import io.circe.generic.auto._
 import io.finch._
 import io.finch.catsEffect._
 import io.finch.circe._
+import sttp.client3.asynchttpclient.cats.AsyncHttpClientCatsBackend
 import vinhhv.io.jobcoin.API._
 import vinhhv.io.jobcoin.errorhandling.EncodingImplicits._
 import vinhhv.io.jobcoin.repository.{HouseTransferQueueInMemory, JobCoinAPI, MixerRepositoryInMemory}
@@ -21,19 +22,11 @@ object Main extends IOApp {
   implicit val ec = ExecutionContext.global
   implicit val ctx = IO.contextShift(ec)
 
-  val jobCoinAPI = new JobCoinAPI()
-  val mixerRepo = new MixerRepositoryInMemory()
-  val houseTransferQueue = new HouseTransferQueueInMemory()
-
-  val transferService = new TransferService(jobCoinAPI, mixerRepo, houseTransferQueue)
-  val mixerService = new MixerService(mixerRepo, transferService)
-  val houseTransferService = new HouseTransferService(transferService, mixerRepo, houseTransferQueue)
-
   def healthcheck: Endpoint[IO, String] = get(pathEmpty) {
     Ok("OK")
   }
 
-  def getAddressBalance: Endpoint[IO, BalanceResponse] =
+  def getAddressBalance(transferService: TransferService): Endpoint[IO, BalanceResponse] =
     get("balance" :: path[String]) { name: String =>
       transferService
         .getAddressInfo(name)
@@ -47,7 +40,7 @@ object Main extends IOApp {
   val sendCoinsRequest: Endpoint[IO, SendCoinsRequest] =
     (param("toAddress") :: param("fromAddress") :: param[Double]("amount")).as[SendCoinsRequest]
 
-  def sendCoins: Endpoint[IO, Unit] =
+  def sendCoins(transferService: TransferService): Endpoint[IO, Unit] =
     post("sendCoins" :: sendCoinsRequest) { request: SendCoinsRequest =>
       transferService
         .sendCoins(request.fromAddress, request.toAddress, request.amount)
@@ -58,7 +51,7 @@ object Main extends IOApp {
       case e: Exception => InternalServerError(e)
     }
 
-  def createMixer: Endpoint[IO, DepositAddressResponse] =
+  def createMixer(mixerService: MixerService): Endpoint[IO, DepositAddressResponse] =
     post("createMixer" :: jsonBody[CreateMixerRequest]) { request: CreateMixerRequest =>
       mixerService
         .createMixerAddresses(request.addresses)
@@ -69,29 +62,36 @@ object Main extends IOApp {
       case e: Exception => InternalServerError(e)
     }
 
-  def service: Service[Request, Response] = Bootstrap
+  def service(transferService: TransferService, mixerService: MixerService): Service[Request, Response] = Bootstrap
     .serve[Text.Plain](healthcheck)
-    .serve[Application.Json](getAddressBalance :+: sendCoins :+: createMixer)
+    .serve[Application.Json](getAddressBalance(transferService) :+: sendCoins(transferService) :+: createMixer(mixerService))
     .toService
 
-  def transferDepositsScheduler: IO[Unit] =
+  def transferDepositsScheduler(houseTransferService: HouseTransferService): IO[Unit] =
     houseTransferService.startTransfers *>
-      IO.sleep(20 seconds) *>
-      IO.suspend(transferDepositsScheduler)
+      IO.sleep(Settings.DEPOSIT_SERVICE_SCHEDULE seconds) *>
+      IO.suspend(transferDepositsScheduler(houseTransferService))
 
-  def distributeHousesScheduler: IO[Unit] =
+  def distributeHousesScheduler(mixerService: MixerService): IO[Unit] =
     mixerService.distributeJobcoin *>
-      IO.sleep(10 seconds) *>
-      IO.suspend(distributeHousesScheduler)
+      IO.sleep(Settings.MIXER_SERVICE_SCHEDULE seconds) *>
+      IO.suspend(distributeHousesScheduler(mixerService))
 
   override def run(args: List[String]): IO[ExitCode] = {
-    val serve: IO[ListeningServer] = IO(Http.server.serve(":8081", service))
     val app = for {
+      backend <- AsyncHttpClientCatsBackend[IO]()
+      jobCoinAPI = new JobCoinAPI(backend)
+      mixerRepo = new MixerRepositoryInMemory()
+      houseTransferQueue = new HouseTransferQueueInMemory()
+      transferService = new TransferService(jobCoinAPI, mixerRepo, houseTransferQueue)
+      mixerService = new MixerService(mixerRepo, transferService)
+      houseTransferService = new HouseTransferService(transferService, mixerRepo, houseTransferQueue)
+      serve: IO[ListeningServer] = IO(Http.server.serve(":8081", service(transferService, mixerService)))
       exit <-
         Parallel
           .parMap3(
-            transferDepositsScheduler,
-            distributeHousesScheduler,
+            transferDepositsScheduler(houseTransferService),
+            distributeHousesScheduler(mixerService),
             serve
           )((_, _, _) => ExitCode.Success)
     } yield exit

@@ -15,6 +15,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "com.github.finagle" %% "finchx-core"  % finchVersion,
       "com.github.finagle" %% "finchx-circe"  % finchVersion,
+      "com.softwaremill.sttp.client3" %% "async-http-client-backend-cats" % sttpVersion,
       "com.softwaremill.sttp.client3" %% "core" % sttpVersion,
       "com.typesafe" % "config" % "1.4.1",
       "io.catbird" %% "catbird-finagle" % catBirdVersion,
