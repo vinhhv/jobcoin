@@ -4,7 +4,7 @@ import cats.effect.{IO, Timer}
 import cats.syntax.apply._
 import com.twitter.finagle.{Http, Service}
 import com.twitter.finagle.http.{Request, Response}
-import com.twitter.util.{Await, FuturePool}
+import com.twitter.util.Await
 import io.circe.generic.auto._
 import io.finch._
 import io.finch.catsEffect._
@@ -34,30 +34,25 @@ object Main extends App {
     Ok("OK")
   }
 
-  def getAddressBalance: Endpoint[IO, BalanceResponse] = get("balance" :: path[String]) { name: String =>
-    FuturePool.unboundedPool {
+  def getAddressBalance: Endpoint[IO, BalanceResponse] =
+    get("balance" :: path[String]) { name: String =>
       transferService
         .getAddressInfo(name)
         .map(addressInfo => Ok(BalanceResponse(addressInfo.balance.amount.toString)))
-        .unsafeRunSync()
     } handle {
       // TODO: This always returns server error no matter what, not sure why. Needs to be fixed
       case e: JobCoinInputException => BadRequest(e)
       case e: Exception => InternalServerError(e)
     }
-  }
 
   val sendCoinsRequest: Endpoint[IO, SendCoinsRequest] =
     (param("toAddress") :: param("fromAddress") :: param[Double]("amount")).as[SendCoinsRequest]
 
   def sendCoins: Endpoint[IO, Unit] =
     post("sendCoins" :: sendCoinsRequest) { request: SendCoinsRequest =>
-      FuturePool.unboundedPool {
-        transferService
-          .sendCoins(request.fromAddress, request.toAddress, request.amount)
-          .map(_ => Ok())
-          .unsafeRunSync
-      }
+      transferService
+        .sendCoins(request.fromAddress, request.toAddress, request.amount)
+        .map(_ => Ok())
     } handle {
       // TODO: This always returns server error no matter what, not sure why. Needs to be fixed
       case e: JobCoinInputException => BadRequest(e)
@@ -66,12 +61,9 @@ object Main extends App {
 
   def createMixer: Endpoint[IO, DepositAddressResponse] =
     post("createMixer" :: jsonBody[CreateMixerRequest]) { request: CreateMixerRequest =>
-      FuturePool.unboundedPool {
-        mixerService
-          .createMixerAddresses(request.addresses)
-          .map(depositAddress => Ok(DepositAddressResponse(depositAddress.name)))
-          .unsafeRunSync
-      }
+      mixerService
+        .createMixerAddresses(request.addresses)
+        .map(depositAddress => Ok(DepositAddressResponse(depositAddress.name)))
     } handle {
       // TODO: This always returns server error no matter what, not sure why. Needs to be fixed
       case e: JobCoinInputException => BadRequest(e)
@@ -83,15 +75,15 @@ object Main extends App {
     .serve[Application.Json](getAddressBalance :+: sendCoins :+: createMixer)
     .toService
 
-  def transferDepositsScheduler: IO[Unit] =
-    IO.suspend(houseTransferService.startTransfers) *>
+  val transferDepositsScheduler: IO[Unit] =
+    houseTransferService.startTransfers *>
       IO.sleep(20 seconds) *>
-      IO.suspend(transferDepositsScheduler)
+      transferDepositsScheduler
 
-  def distributeHousesScheduler: IO[Unit] =
-    IO.suspend(mixerService.distributeJobcoin) *>
+  val distributeHousesScheduler: IO[Unit] =
+    mixerService.distributeJobcoin *>
       IO.sleep(10 seconds) *>
-      IO.suspend(distributeHousesScheduler)
+      distributeHousesScheduler
 
   val app = for {
     fiber1 <- transferDepositsScheduler.start

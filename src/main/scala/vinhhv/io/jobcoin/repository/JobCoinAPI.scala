@@ -6,12 +6,13 @@ import io.circe.Json
 import io.circe.parser.parse
 import sttp.client3._
 import vinhhv.io.jobcoin.Settings.{ADDRESSES_URL, TRANSACTIONS_URL}
-import vinhhv.io.jobcoin.models.{Address, Funds}
+import vinhhv.io.jobcoin.models.{Address, FundType, Funds}
 
 final class JobCoinAPI extends CoinRepository {
+  // Use cats effect backend
   val backend = HttpURLConnectionBackend()
 
-  def sendCoins(fromAddress: Address, toAddress: Address, deposit: Funds.Deposit): IO[Unit] = {
+  def sendCoins(fromAddress: Address[_], toAddress: Address[_], deposit: Funds[FundType.Deposit]): IO[Unit] = {
     val uri = uri"${TRANSACTIONS_URL}"
     val request = basicRequest
       .post(uri)
@@ -25,7 +26,7 @@ final class JobCoinAPI extends CoinRepository {
     }
   }
 
-  def getAddressInfo(address: Address): IO[Json] = {
+  def getAddressInfo(address: Address[_]): IO[Json] = {
     val uri = uri"${ADDRESSES_URL}/${address.name}"
     val request = basicRequest.get(uri)
     val responseIO = IO(request.send(backend))

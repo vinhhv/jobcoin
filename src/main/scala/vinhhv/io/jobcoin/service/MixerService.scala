@@ -8,18 +8,22 @@ import cats.instances.list._
 import cats.syntax.apply._
 import cats.syntax.parallel._
 import cats.syntax.traverse._
+import vinhhv.io.jobcoin.Settings.PRECISION
 import vinhhv.io.jobcoin.algorithm.RandomDistribution
+import vinhhv.io.jobcoin.models.AddressType
+import vinhhv.io.jobcoin.models.FundType
 import vinhhv.io.jobcoin.models.{Address, DistributionAddresses, Funds}
 import vinhhv.io.jobcoin.repository.MixerRepository
 
 final class MixerService(repo: MixerRepository, transferService: TransferService) {
   // Creates mixer addresses using the list of provided addresses
-  def createMixerAddresses(addresses: List[String]): IO[Address.DepositAddress] = {
+  def createMixerAddresses(addresses: List[String]): IO[Address[AddressType.Deposit]] = {
     for {
       _ <- if (addresses.isEmpty) IO.raiseError(EmptyAddressException()) else IO.unit
-      addresses <- addresses.map(Address.createStandard).sequence
-      depositAddress <- Address.createDeposit(generateRandomAddress)
-      houseAddress <- Address.createHouse(generateRandomAddress)
+      // Change to traverse
+      addresses <- addresses.traverse(address => IO.fromTry(Address.create[AddressType.Standard](address)))
+      depositAddress <- IO.fromTry(Address.create[AddressType.Deposit](generateRandomAddress))
+      houseAddress <- IO.fromTry(Address.create[AddressType.House](generateRandomAddress))
       _ <- repo.createMixerPipeline(depositAddress, houseAddress, addresses)
     } yield depositAddress
   }
@@ -40,15 +44,15 @@ final class MixerService(repo: MixerRepository, transferService: TransferService
   }
 }
 object MixerService {
-  type Distribution = (Address.StandardAddress, Double)
+  type Distribution = (Address[AddressType.Standard], Double)
 
   final case class MixerAddressInfo(
-    houseAddress: Address.HouseAddress,
-    sinkAddresses: List[Address.StandardAddress],
-    balance: Funds.Balance)
+    houseAddress: Address[AddressType.House],
+    sinkAddresses: List[Address[AddressType.Standard]],
+    balance: Funds[FundType.Balance])
 
   final case class MixerAddressDistribution(
-    houseAddress: Address.HouseAddress,
+    houseAddress: Address[AddressType.House],
     distributions: List[Distribution])
 
   def getAllAddressBalancesPar(
@@ -56,7 +60,7 @@ object MixerService {
       transferService: TransferService
   )(implicit cs: ContextShift[IO]): IO[List[MixerAddressInfo]] =
     addresses
-      .map {
+      .parTraverse {
         distributionAddress =>
           transferService
             .getAddressInfo(distributionAddress.houseAddress.name)
@@ -64,7 +68,6 @@ object MixerService {
               MixerAddressInfo(distributionAddress.houseAddress, distributionAddress.sinkAddresses, addressInfo.balance)
             )
       }
-      .parSequence
       .map(infos => infos.filter(info => info.balance.amount > 0.toDouble))
 
   def calculateDistributions(mixerAddressInfos: List[MixerAddressInfo]): List[MixerAddressDistribution] =
@@ -74,7 +77,10 @@ object MixerService {
       val percentageShouldDistribute =
         RandomDistribution.getPercentageDistribution(info.balance.amount, info.sinkAddresses.length)
 
-      val totalShouldDistribute = totalBalance * percentageShouldDistribute
+      val totalShouldDistribute =
+        BigDecimal(totalBalance * percentageShouldDistribute)
+          .setScale(PRECISION, BigDecimal.RoundingMode.HALF_UP)
+          .toDouble
       val distributions = RandomDistribution.randomDistribution(totalShouldDistribute, numberSinks)
       MixerAddressDistribution(info.houseAddress, info.sinkAddresses.zip(distributions))
     }
