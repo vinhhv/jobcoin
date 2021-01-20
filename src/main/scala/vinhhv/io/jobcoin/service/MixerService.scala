@@ -37,7 +37,7 @@ final class MixerService(repo: MixerRepository, transferService: TransferService
       _ <- IO(println(s"Received distribution addresses: $distributionAddresses"))
       addressBalances <- MixerService.getAllAddressBalancesPar(distributionAddresses, transferService)
       _ <- IO(println(s"Received address balances: $addressBalances"))
-      distributions = MixerService.calculateDistributions(addressBalances)
+      distributions <- MixerService.calculateDistributions(addressBalances)
       _ <- IO(println(s"Calculated distributions: $distributions"))
       _ <- MixerService.sendDistributions(distributions, transferService)
     } yield ()
@@ -70,19 +70,23 @@ object MixerService {
       }
       .map(infos => infos.filter(info => info.balance.amount > 0.toDouble))
 
-  def calculateDistributions(mixerAddressInfos: List[MixerAddressInfo]): List[MixerAddressDistribution] =
-    mixerAddressInfos.map { info =>
+  def calculateDistributions(mixerAddressInfos: List[MixerAddressInfo]): IO[List[MixerAddressDistribution]] =
+    mixerAddressInfos.traverse { info =>
       val totalBalance = info.balance.amount
       val numberSinks = info.sinkAddresses.length
-      val percentageShouldDistribute =
-        RandomDistribution.getPercentageDistribution(info.balance.amount, info.sinkAddresses.length)
-
-      val totalShouldDistribute =
-        BigDecimal(totalBalance * percentageShouldDistribute)
-          .setScale(PRECISION, BigDecimal.RoundingMode.HALF_UP)
-          .toDouble
-      val distributions = RandomDistribution.randomDistribution(totalShouldDistribute, numberSinks)
-      MixerAddressDistribution(info.houseAddress, info.sinkAddresses.zip(distributions))
+      RandomDistribution
+        .getPercentageDistribution(info.balance.amount, info.sinkAddresses.length)
+        .flatMap { percentageShouldDistribute =>
+          val totalShouldDistribute =
+            BigDecimal(totalBalance * percentageShouldDistribute)
+              .setScale(PRECISION, BigDecimal.RoundingMode.HALF_UP)
+              .toDouble
+          RandomDistribution
+            .randomDistribution(totalShouldDistribute, numberSinks)
+            .map { distributions =>
+              MixerAddressDistribution(info.houseAddress, info.sinkAddresses.zip(distributions))
+            }
+        }
     }
 
   def sendDistributions(
