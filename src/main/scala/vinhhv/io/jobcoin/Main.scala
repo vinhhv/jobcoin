@@ -1,5 +1,6 @@
 package vinhhv.io.jobcoin
 
+import cats.Parallel
 import cats.effect.{IO, Timer}
 import cats.syntax.apply._
 import com.twitter.finagle.{Http, Service}
@@ -75,24 +76,25 @@ object Main extends App {
     .serve[Application.Json](getAddressBalance :+: sendCoins :+: createMixer)
     .toService
 
-  val transferDepositsScheduler: IO[Unit] =
+  def transferDepositsScheduler: IO[Unit] =
     houseTransferService.startTransfers *>
       IO.sleep(20 seconds) *>
-      transferDepositsScheduler
+      IO.suspend(transferDepositsScheduler)
 
-  val distributeHousesScheduler: IO[Unit] =
+  def distributeHousesScheduler: IO[Unit] =
     mixerService.distributeJobcoin *>
       IO.sleep(10 seconds) *>
-      distributeHousesScheduler
+      IO.suspend(distributeHousesScheduler)
 
+  val serve = IO(Http.server.serve(":8081", service))
   val app = for {
-    fiber1 <- transferDepositsScheduler.start
-    fiber2 <- distributeHousesScheduler.start
-    result <-
-      IO(Await.ready(Http.server.serve(":8081", service)))
-        .handleErrorWith { error =>
-          fiber1.cancel *> fiber2.cancel *> IO.raiseError(error)
-        }
-  } yield result
+    _ <-
+      Parallel
+        .parMap3(
+          transferDepositsScheduler,
+          distributeHousesScheduler,
+          serve
+        )((_, _, _) => ())
+  } yield ()
   app.unsafeRunSync()
 }
