@@ -16,7 +16,7 @@ final class TransferService(repo: CoinRepository, mixerRepo: MixerRepository, qu
       isDepositAddress <- mixerRepo.isDepositAddress(toAddress)
       _ <-
         if (isDepositAddress) {
-          IO(println(s"Adding deposit transaction to queue: ${toAddress} ${deposit.amount}")) *>
+          IO(println(s"Adding deposit transaction to queue: ${toAddress} ${deposit.amount}\n")) *>
           IO.fromTry(Address.create[Deposit](toAddress)).flatMap(address => queue.add(address, deposit))
         } else {
           IO.unit

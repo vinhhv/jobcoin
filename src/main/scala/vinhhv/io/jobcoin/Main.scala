@@ -37,11 +37,9 @@ object Main extends IOApp {
       case e: Exception => InternalServerError(e)
     }
 
-  val sendCoinsRequest: Endpoint[IO, SendCoinsRequest] =
-    (param("toAddress") :: param("fromAddress") :: param[Double]("amount")).as[SendCoinsRequest]
 
   def sendCoins(transferService: TransferService): Endpoint[IO, Unit] =
-    post("sendCoins" :: sendCoinsRequest) { request: SendCoinsRequest =>
+    post("sendCoins" :: jsonBody[SendCoinsRequest]) { request: SendCoinsRequest =>
       transferService
         .sendCoins(request.fromAddress, request.toAddress, request.amount)
         .map(_ => Ok())
@@ -86,7 +84,7 @@ object Main extends IOApp {
       transferService = new TransferService(jobCoinAPI, mixerRepo, houseTransferQueue)
       mixerService = new MixerService(mixerRepo, transferService)
       houseTransferService = new HouseTransferService(transferService, mixerRepo, houseTransferQueue)
-      serve: IO[ListeningServer] = IO(Http.server.serve(":8081", service(transferService, mixerService)))
+      serve: IO[ListeningServer] = IO(Http.server.serve(s":${Settings.PORT}", service(transferService, mixerService)))
       exit <-
         Parallel
           .parMap3(

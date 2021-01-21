@@ -14,17 +14,15 @@ final class HouseTransferService(transferService: TransferService, repo: MixerRe
     for {
       _ <- Stream
         .unfoldEval[IO, DepositLogIteration, Int](DepositLogIteration(0, None)) {
-          case DepositLogIteration(count, log) if log.isEmpty && count != 0 =>
-            IO(println(s"Processed all ${count - 1} items in the queue.")) *> IO.pure(None)
+          case DepositLogIteration(count, log) if log.isEmpty && count != 0 => IO.pure(None)
           case DepositLogIteration(count, log) if log.isEmpty && count == 0 =>
-            IO(println("Starting fiber to transfer funds from deposit addresses to house addresses")) *>
             queue.get.map(d => Some(count + 1 -> DepositLogIteration(count + 1, d)))
           case DepositLogIteration(count, Some(depositLog)) =>
             for {
               depositAddress <- IO.fromTry(Address.create[Deposit](depositLog.address.name))
               houseAddress <- repo.getHouseAddress(depositAddress)
               _ <- IO(
-                println(s"Processing deposit from ${depositLog.address} with amount ${depositLog.amount} to $houseAddress"))
+                println(s"Processing deposit from ${depositLog.address} with amount ${depositLog.amount} to $houseAddress\n"))
               _ <- transferService.sendCoins(depositAddress.name, houseAddress.name, depositLog.amount.amount)
               nextLog <- queue.get.map(d => Some(count + 1 -> DepositLogIteration(count + 1, d)))
             } yield nextLog

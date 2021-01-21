@@ -34,11 +34,8 @@ final class MixerService(repo: MixerRepository, transferService: TransferService
   def distributeJobcoin(implicit cs: ContextShift[IO]): IO[Unit] = {
     for {
       distributionAddresses <- repo.getDistributionAddresses
-      _ <- IO(println(s"Received distribution addresses: $distributionAddresses"))
       addressBalances <- MixerService.getAllAddressBalancesPar(distributionAddresses, transferService)
-      _ <- IO(println(s"Received address balances: $addressBalances"))
       distributions <- MixerService.calculateDistributions(addressBalances)
-      _ <- IO(println(s"Calculated distributions: $distributions"))
       _ <- MixerService.sendDistributions(distributions, transferService)
     } yield ()
   }
