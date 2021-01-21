@@ -8,6 +8,7 @@ import cats.instances.list._
 import cats.syntax.apply._
 import cats.syntax.parallel._
 import cats.syntax.traverse._
+import com.typesafe.scalalogging.LazyLogging
 import vinhhv.io.jobcoin.Settings.PRECISION
 import vinhhv.io.jobcoin.algorithm.RandomDistribution
 import vinhhv.io.jobcoin.models.AddressType
@@ -40,7 +41,7 @@ final class MixerService(repo: MixerRepository, transferService: TransferService
     } yield ()
   }
 }
-object MixerService {
+object MixerService extends LazyLogging {
   type Distribution = (Address[AddressType.Standard], Double)
 
   final case class MixerAddressInfo(
@@ -94,7 +95,7 @@ object MixerService {
       .flatMap { distribution =>
         distribution.distributions.map {
           case (sinkAddress, amount) =>
-            IO(println(s"Distributing $amount from ${distribution.houseAddress} to $sinkAddress")) *>
+            IO(logger.info(s"Distributing $amount from ${distribution.houseAddress} to $sinkAddress\n")) *>
             transferService.sendCoins(distribution.houseAddress.name, sinkAddress.name, amount)
         }
       }

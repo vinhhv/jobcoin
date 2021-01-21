@@ -2,12 +2,17 @@ package vinhhv.io.jobcoin.service
 
 import cats.effect.{ContextShift, IO}
 import cats.syntax.apply._
+import com.typesafe.scalalogging.LazyLogging
 import fs2.Stream
 import vinhhv.io.jobcoin.models.AddressType.Deposit
 import vinhhv.io.jobcoin.models.{Address, DepositLog}
 import vinhhv.io.jobcoin.repository.{HouseTransferQueue, MixerRepository}
 
-final class HouseTransferService(transferService: TransferService, repo: MixerRepository, queue: HouseTransferQueue) {
+final class HouseTransferService(
+    transferService: TransferService,
+    repo: MixerRepository,
+    queue: HouseTransferQueue
+) extends LazyLogging {
   final case class DepositLogIteration(count: Int, depositLog: Option[DepositLog])
   // Transfers balances from deposit addresses to their linked house addresses.
   def startTransfers(implicit cs: ContextShift[IO]): IO[Unit] = {
@@ -22,7 +27,8 @@ final class HouseTransferService(transferService: TransferService, repo: MixerRe
               depositAddress <- IO.fromTry(Address.create[Deposit](depositLog.address.name))
               houseAddress <- repo.getHouseAddress(depositAddress)
               _ <- IO(
-                println(s"Processing deposit from ${depositLog.address} with amount ${depositLog.amount} to $houseAddress\n"))
+                logger.info(
+                  s"Processing deposit from ${depositLog.address} with amount ${depositLog.amount} to $houseAddress\n"))
               _ <- transferService.sendCoins(depositAddress.name, houseAddress.name, depositLog.amount.amount)
               nextLog <- queue.get.map(d => Some(count + 1 -> DepositLogIteration(count + 1, d)))
             } yield nextLog

@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import cats.effect.IO
 import cats.syntax.apply._
+import com.typesafe.scalalogging.LazyLogging
 import vinhhv.io.jobcoin.models.AddressType._
 import vinhhv.io.jobcoin.models.{Address, DistributionAddresses}
 
@@ -13,7 +14,7 @@ import scala.collection.JavaConverters._
 // For the purpose of simplicity, we will link our deposit, housing
 // and sink addresses using two concurrent hash maps. They will NOT
 // outlive the life of the server.
-final class MixerRepositoryInMemory extends MixerRepository {
+final class MixerRepositoryInMemory extends MixerRepository with LazyLogging {
   private val depositToHousingMap = new ConcurrentHashMap[Address[Deposit], Address[House]]()
   private val housingToSinkMap = new ConcurrentHashMap[Address[House], Set[Address[Standard]]]()
 
@@ -23,7 +24,8 @@ final class MixerRepositoryInMemory extends MixerRepository {
       sinkAddresses: List[Address[Standard]]
   ): IO[Unit] = {
     for {
-      _ <- IO(println(s"Creating mixer pipeline for ${depositAddress.name} -> ${houseAddress.name} -> $sinkAddresses"))
+      _ <- IO(logger.info(
+        s"Creating mixer pipeline for ${depositAddress.name} -> ${houseAddress.name} -> $sinkAddresses\n"))
       containsDepositAddress <- IO(depositToHousingMap.contains(depositAddress))
       containsHouseAddress <- IO(housingToSinkMap.contains(houseAddress))
       _ <- (containsDepositAddress, containsHouseAddress) match {

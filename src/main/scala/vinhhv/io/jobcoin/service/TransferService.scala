@@ -2,11 +2,16 @@ package vinhhv.io.jobcoin.service
 
 import cats.effect.IO
 import cats.syntax.apply._
+import com.typesafe.scalalogging.LazyLogging
 import vinhhv.io.jobcoin.models.AddressType._
 import vinhhv.io.jobcoin.models.{Address, AddressInfo, Funds}
 import vinhhv.io.jobcoin.repository.{CoinRepository, HouseTransferQueue, MixerRepository}
 
-final class TransferService(repo: CoinRepository, mixerRepo: MixerRepository, queue: HouseTransferQueue) {
+final class TransferService(
+    repo: CoinRepository,
+    mixerRepo: MixerRepository,
+    queue: HouseTransferQueue
+) extends LazyLogging {
   def sendCoins(fromAddress: String, toAddress: String, deposit: Double): IO[Unit] =
     for {
       standardFromAddress <- IO.fromTry(Address.create[Standard](fromAddress))
@@ -16,7 +21,7 @@ final class TransferService(repo: CoinRepository, mixerRepo: MixerRepository, qu
       isDepositAddress <- mixerRepo.isDepositAddress(toAddress)
       _ <-
         if (isDepositAddress) {
-          IO(println(s"Adding deposit transaction to queue: ${toAddress} ${deposit.amount}\n")) *>
+          IO(logger.info(s"Adding deposit transaction to queue: ${toAddress} ${deposit.amount}\n")) *>
           IO.fromTry(Address.create[Deposit](toAddress)).flatMap(address => queue.add(address, deposit))
         } else {
           IO.unit
