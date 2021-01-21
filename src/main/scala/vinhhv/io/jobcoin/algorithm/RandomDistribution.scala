@@ -22,21 +22,24 @@ object RandomDistribution {
   // -> Calculate the differences between the numbers and scale it back down:
   //    [5539117.10858704, 3091516.28187564, 1024528.6087712, 344838.45096612]
   def randomDistribution(total: Double, nParts: Int): IO[List[Double]] = {
-    val totalScaled = BigDecimal(total * math.pow(10, PRECISION)).toBigInt
-    val rangesIO =
-      (1 to nParts)
-        .toList
-        .traverse(_ => generateRandomBigInt(totalScaled))
-        .map(_.patch(nParts - 1, List(totalScaled), 1))
+    if (nParts < 2 || total <= 0.0) IO.pure(List(total))
+    else {
+      val totalScaled = BigDecimal(total * math.pow(10, PRECISION)).toBigInt
+      val rangesIO =
+        (1 to nParts)
+          .toList
+          .traverse(_ => generateRandomBigInt(totalScaled))
+          .map(_.patch(nParts - 1, List(totalScaled), 1))
 
-    rangesIO.map { ranges =>
-      (BigInt(0) +: ranges)
-        .sorted
-        .sliding(2, 1)
-        .map { pairs =>
-          (BigDecimal(pairs(1) - pairs.head) / BigDecimal(math.pow(10, PRECISION))).toDouble
-        }
-        .toList
+      rangesIO.map { ranges =>
+        (BigInt(0) +: ranges)
+          .sorted
+          .sliding(2, 1)
+          .map { pairs =>
+            (BigDecimal(pairs(1) - pairs.head) / BigDecimal(math.pow(10, PRECISION))).toDouble
+          }
+          .toList
+      }
     }
   }
 

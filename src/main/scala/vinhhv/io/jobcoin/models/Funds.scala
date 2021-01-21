@@ -17,7 +17,7 @@ object Funds {
   }
 
   def createDeposit(amount: Double): Try[Funds[FundType.Deposit]] = {
-    if (amount < Double.MinPositiveValue) Failure(IncorrectDepositException(amount))
+    if (amount < 0.0) Failure(IncorrectDepositException(amount))
     else Success(Funds[FundType.Deposit](amount))
   }
 }

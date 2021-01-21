@@ -21,7 +21,7 @@ final class TransferService(
       isDepositAddress <- mixerRepo.isDepositAddress(toAddress)
       _ <-
         if (isDepositAddress) {
-          IO(logger.info(s"Adding deposit transaction to queue: ${toAddress} ${deposit.amount}\n")) *>
+          IO(logger.info(s"Adding deposit transaction to queue: $toAddress ${deposit.amount}\n")) *>
           IO.fromTry(Address.create[Deposit](toAddress)).flatMap(address => queue.add(address, deposit))
         } else {
           IO.unit
